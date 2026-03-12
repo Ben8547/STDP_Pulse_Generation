@@ -96,9 +96,9 @@ class STDP_Data_Processing:
 
         self.trials = collated_data(self,trials)
 
-        plt.plot(self.trials.Trial_11[:,1],self.trials.Trial_11[:,2])
+        '''plt.plot(self.trials.Trial_11[:,1],self.trials.Trial_11[:,2])
         plt.plot(self.trials.Trial_11[:,1],self.trials.Trial_11[:,3])
-        plt.show()
+        plt.show()'''
 
     def Determine_peak_voltage(self):
         '''Estimate the crest height of the STDP Pulse from the data'''
@@ -181,10 +181,26 @@ class collated_data:
 
             self.delta_T = np.array(self.delta_T)
 
+            # Now we want to extract the channel one currents over each reading pulse:
+            count = 0
+            rolling_sum = 0.
+            current_reads = []
+            for i in range(len(outerself.index_reading_wave)):
+                if np.abs(outerself.read_current1[i]) <= 1e-16:
+                    if count > 0:
+                        current_reads.append(rolling_sum/count)
+                    count = 0
+                    rolling_sum = 0.
+                else:
+                    rolling_sum += outerself.read_current1[i]
+                    count += 1
+            self.current_reads = np.array(current_reads)
+
+
 # tests
 if __name__ == "__main__":
     directory = "./Data/2026-03-11 STDP Testing/"
-    file_name = "F7_STDP.xls"
+    file_name = "F9_STDP.xls"
     file = directory + file_name
     Data = STDP_Data_Processing(file)
     #print(Data.time_series)
@@ -194,6 +210,9 @@ if __name__ == "__main__":
     #print(Data.FFT_voltage2)
     #Data.view_current2()
     #Data.view_current1()
+    #plt.plot(Data.time_series, Data.read_current1)
+    #plt.plot(Data.time_series, Data.read_current2)
+    #plt.show()
     """plt.plot(Data.read_current1)
     plt.plot(Data.read_current2)
     plt.show()"""
