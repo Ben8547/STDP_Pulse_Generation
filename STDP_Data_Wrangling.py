@@ -7,7 +7,7 @@ from scipy.ndimage import minimum_filter1d, maximum_filter1d
 
 class STDP_Data_Processing:
     def __init__(self, excel_file:str, peak_voltage=None, reading_voltage=None, offsets=None):
-        '''The assumption is that the reading pulse is in channel 1'''
+        '''The assumption is that the reading pulses are in channel 1 with the pre-synaptic pulses and Ch2 contains only the post synaptic pulses'''
         self.raw_data = pd.read_excel(excel_file,"Data")
         self.voltage1 = self.raw_data.VMeasCh1.to_numpy()
         self.voltage2 = self.raw_data.VMeasCh2.to_numpy()
@@ -22,16 +22,22 @@ class STDP_Data_Processing:
         else:
             self.peak_voltage = peak_voltage
         
+        self.reading_wave, self.pre_synaptic_wave, self.index_reading_wave = self.Extract_reading_pulse()
         if reading_voltage == None:
-            self.reading_wave, self.triangle_wave, self.index_reading_wave = self.Extract_reading_pulse()
             self.reading_voltage = self.Determine_reading_voltage()
         else:
             self.reading_voltage = reading_voltage
 
+        self.post_synaptic_wave = self.voltage2 # rename for convenience
+        
+
         self.read_current1 = self.current1 * self.index_reading_wave
         self.read_current2 = self.current2 * self.index_reading_wave
-        self.delta_T = self.Compute_delta_T() # can approximate the changing Delta_T by using the time between each readin g pulse
-        self.Resistances = [1]
+
+        self.collate_trials() # adds the self.trials instance
+
+        self.delta_T = self.trials.delta_T # can approximate the changing Delta_T by using the time between each readin g pulse
+        self.Resistances = 1
 
     # Visualization Functions:
     
@@ -70,18 +76,34 @@ class STDP_Data_Processing:
 
     # Data Wrangling Functions:
 
+
+    def collate_trials(self):
+        # each trial occurs between a reading pulse; so we can separate the time-series into sections based on the reading pulses
+        start_count = 0
+        trials = []
+
+        for j, ind in enumerate(self.index_reading_wave[1:]):
+            i = j+1 # because we sloce the index_reading_wave
+
+            if j != len(self.index_reading_wave)-2:
+                if start_count == 0 and ind==1 and self.index_reading_wave[i+1]==0:
+                    start_count = 1
+                    start_index = i
+
+            if start_count == 1 and ind == 1 and self.index_reading_wave[i-1]==0:
+                trials.append((start_index,i)) # add a tuple for the range of indicies 
+                start_count = 0
+
+        self.trials = collated_data(self,trials)
+
+        plt.plot(self.trials.Trial_11[:,1],self.trials.Trial_11[:,2])
+        plt.plot(self.trials.Trial_11[:,1],self.trials.Trial_11[:,3])
+        plt.show()
+
     def Determine_peak_voltage(self):
         '''Estimate the crest height of the STDP Pulse from the data'''
         peaks = signal.find_peaks(self.voltage2, height=0.8*np.max(self.voltage2), prominence=0.8*np.max(self.voltage2))[0] # Returns indicies in the array; set the minimal peak height so that we don't detect local maxima in the noise
         return np.mean(self.voltage2[peaks])
-
-    def Determine_offset(self):
-        '''Offset is the time between each pre_pule and equivelently, the time between each post_pulse'''
-        # We compute the effset by computing the distance between the peaks of the wave
-        peaks = signal.find_peaks(self.voltage2, height=0.8*np.max(self.voltage2), prominence=0.8*np.max(self.voltage2))[0] # Returns indicies in the array; set the minimal peak height so that we don't detect local maxima in the noise
-        print(self.voltage2[peaks])
-        offset = 1
-        return offset
     
     def Extract_reading_pulse(self):
 
@@ -126,13 +148,14 @@ class STDP_Data_Processing:
         for j, ind in enumerate(self.index_reading_wave[1:]):
             i = j+1 # because we sloce the index_reading_wave
 
-            if start_count == 1 and ind == 1 and self.index_reading_wave[i-1]==0:
-                delta_T.append(self.time_series[i] - start_time)
-                start_count = 0
             if j != len(self.index_reading_wave)-2:
                 if start_count == 0 and ind==1 and self.index_reading_wave[i+1]==0:
                     start_count = 1
                     start_time = self.time_series[i]
+
+            if start_count == 1 and ind == 1 and self.index_reading_wave[i-1]==0:
+                delta_T.append(self.time_series[i] - start_time)
+                start_count = 0
         
         return np.array(delta_T)
 
@@ -146,6 +169,17 @@ class STDP_Data_Processing:
         return (G_after - G_before) * R_min * 100.
 
 
+class collated_data:
+        def __init__(self, outerself:STDP_Data_Processing, trials:tuple[int,int]):
+            self.delta_T = [] # this is the distance between peaks of the pre- and post- (post-pre) 
+            for i in range(len(trials)):
+                self.__dict__["Trial_%i"%i] = np.column_stack([np.arange(trials[i][0],trials[i][1],1),outerself.time_series[trials[i][0]:trials[i][1]], outerself.pre_synaptic_wave[trials[i][0]:trials[i][1]], outerself.post_synaptic_wave[trials[i][0]:trials[i][1]]])
+                # first column is the range of indicies, second column is the time series, and so on
+                pre_peak = self.__dict__["Trial_%i"%i][np.argmax(self.__dict__["Trial_%i"%i][:,2]),1]
+                post_peak = self.__dict__["Trial_%i"%i][np.argmax(self.__dict__["Trial_%i"%i][:,3]),1]
+                self.delta_T.append(post_peak - pre_peak)
+
+            self.delta_T = np.array(self.delta_T)
 
 # tests
 if __name__ == "__main__":
@@ -164,3 +198,4 @@ if __name__ == "__main__":
     plt.plot(Data.read_current2)
     plt.show()"""
     #Data.view_reading_pulses()
+    print(Data.delta_T)
