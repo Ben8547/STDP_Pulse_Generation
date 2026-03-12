@@ -37,7 +37,15 @@ class STDP_Data_Processing:
         self.collate_trials() # adds the self.trials instance
 
         self.delta_T = self.trials.delta_T # can approximate the changing Delta_T by using the time between each readin g pulse
-        self.Resistances = 1
+        self.current_reads = self.trials.current_reads
+
+        self.Resistances = self.reading_voltage/self.current_reads
+
+        R_before = self.Resistances[:-1]
+        R_after = self.Resistances[1:]
+
+        self.weights = self.delta_w_percent(R_before,R_after)
+        #print(self.weights)
 
     # Visualization Functions:
     
@@ -72,6 +80,11 @@ class STDP_Data_Processing:
         plt.plot(self.time_series,self.triangle_wave, label="Synaptic Pulse")
         plt.title("Synaptic Pulse")
         plt.legend()
+        plt.show()
+    def view_Weights(self):
+        plt.scatter(self.delta_T,self.weights)
+        plt.ylabel("$\Delta w$%")
+        plt.xlabel("$\Delta T$")
         plt.show()
 
     # Data Wrangling Functions:
@@ -194,6 +207,7 @@ class collated_data:
                 else:
                     rolling_sum += outerself.read_current1[i]
                     count += 1
+            
             self.current_reads = np.array(current_reads)
 
 
@@ -216,5 +230,7 @@ if __name__ == "__main__":
     """plt.plot(Data.read_current1)
     plt.plot(Data.read_current2)
     plt.show()"""
-    #Data.view_reading_pulses()
+    print(Data.weights)
     print(Data.delta_T)
+    Data.view_Weights()
+    #print(Data.delta_T)
