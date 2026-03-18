@@ -3,10 +3,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from numpy import fft
 from scipy import signal
-from scipy.ndimage import minimum_filter1d, maximum_filter1d
 
 class STDP_Data_Processing:
-    def __init__(self, excel_file:str, peak_voltage=None, reading_voltage=None, offsets=None):
+    def __init__(self, excel_file:str, peak_voltage=None, reading_voltage=None, Denoise_V = False, Denoise_C = False, Threshold_V=None, Threshold_C=None):
         '''The assumption is that the reading pulses are in channel 1 with the pre-synaptic pulses and Ch2 contains only the post synaptic pulses'''
         self.file_name = excel_file
         self.raw_data = pd.read_excel(excel_file,"Data")
@@ -16,6 +15,23 @@ class STDP_Data_Processing:
         self.current2 = self.raw_data.IMeasCh2.to_numpy()
         self.time_series = self.raw_data.TimeOutput.to_numpy()
         self.dt = self.time_series[1] - self.time_series[0] # time between samples
+
+        if Denoise_V:
+            if Threshold_V == None:
+                raise ValueError("Threshold must have a value to denoise")
+            self.soft_smooth_voltages(Threshold_V)
+        
+        if Denoise_C:
+
+            plt.plot(self.time_series,self.current1)
+            plt.show()
+
+            if Threshold_C == None:
+                raise ValueError("Threshold must have a value to denoise")
+            self.soft_smooth_currents(Threshold_C)
+
+            plt.plot(self.time_series,self.current1)
+            plt.show()
 
         if peak_voltage == None:
             self.peak_voltage = self.Determine_peak_voltage()
@@ -197,8 +213,10 @@ class STDP_Data_Processing:
                 else:
                     new_weights[i] = np.average(self.weights[i-window_size//2:i+window_size//2])
 
-        
-        self.weights = new_weights
+            self.weights = new_weights
+
+        if method == 'SavGol':
+            self.weights = signal.savgol_filter(self.weights,window_length=window_size,polyorder=3)
 
     def soft_smooth_voltages(self,threshold_freq:float):
         for voltage in {"voltage1", "voltage2"}:
@@ -207,6 +225,14 @@ class STDP_Data_Processing:
             V_freq = fft.fftfreq(voltage_series.size,self.dt)
             Vfft[np.abs(V_freq) > threshold_freq] = 0.
             setattr(self, voltage, fft.ifft(Vfft).real)
+
+    def soft_smooth_currents(self,threshold_freq:float):
+        for current in {"current1", "current2"}:
+            current_series = getattr(self, current)
+            Vfft = fft.fft(current_series)
+            V_freq = fft.fftfreq(current_series.size,self.dt)
+            Vfft[np.abs(V_freq) > threshold_freq] = 0.
+            setattr(self, current, fft.ifft(Vfft).real)
 
 
 
@@ -244,11 +270,9 @@ class collated_data:
 # tests
 if __name__ == "__main__":
     directory = "./Data/2026-03-11 STDP Testing/"
-    file_name = "F7_STDP.xls"
+    file_name = "F9_STDP.xls"
     file = directory + file_name
-    Data = STDP_Data_Processing(file)
-
-
-    Data.view_voltages()
-    Data.soft_smooth_voltages(800.)
-    Data.view_voltages()
+    Data = STDP_Data_Processing(file, Denoise_C = False, Threshold_C=200.)
+    Data.view_Weights()
+    Data.smooth_w_percent(method='SavGol',window_size=8)
+    Data.view_Weights()
