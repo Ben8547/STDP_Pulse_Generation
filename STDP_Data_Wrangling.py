@@ -5,7 +5,7 @@ from numpy import fft
 from scipy import signal
 
 class STDP_Data_Processing:
-    def __init__(self, excel_file:str, peak_voltage=None, reading_voltage=None, Denoise_V = False, Denoise_C = False, Threshold_V=None, Threshold_C=None):
+    def __init__(self, excel_file:str, peak_voltage=None, reading_voltage=None, Denoise_V = False, Denoise_C = False, denoise_c_method="SavGol", Threshold_V=None, Threshold_C=None):
         '''The assumption is that the reading pulses are in channel 1 with the pre-synaptic pulses and Ch2 contains only the post synaptic pulses'''
         self.file_name = excel_file
         self.raw_data = pd.read_excel(excel_file,"Data")
@@ -25,10 +25,15 @@ class STDP_Data_Processing:
 
             plt.plot(self.time_series,self.current1)
             plt.show()
+            
+            if denoise_c_method == 'SoftDenoise':
+                if Threshold_C == None:
+                    raise ValueError("Threshold must have a value to denoise")
+                self.soft_smooth_currents(Threshold_C)
 
-            if Threshold_C == None:
-                raise ValueError("Threshold must have a value to denoise")
-            self.soft_smooth_currents(Threshold_C)
+            elif denoise_c_method == "SavGol":
+                self.current1 = signal.savgol_filter(self.current1, 50,10)
+                self.current2 = signal.savgol_filter(self.current2, 50,10)
 
             plt.plot(self.time_series,self.current1)
             plt.show()
@@ -272,7 +277,7 @@ if __name__ == "__main__":
     directory = "./Data/2026-03-11 STDP Testing/"
     file_name = "F9_STDP.xls"
     file = directory + file_name
-    Data = STDP_Data_Processing(file, Denoise_C = False, Threshold_C=200.)
+    Data = STDP_Data_Processing(file, Denoise_C = False, Threshold_C=200., denoise_c_method="SavGol")
     Data.view_Weights()
-    Data.smooth_w_percent(method='SavGol',window_size=8)
-    Data.view_Weights()
+    #Data.smooth_w_percent(method='SavGol',window_size=8)
+    #Data.view_Weights()
