@@ -278,6 +278,7 @@ if __name__ == "__main__":
     file_name = "F9_STDP.xls"
     file = directory + file_name
     Data = STDP_Data_Processing(file, Denoise_C = False, Threshold_C=200., denoise_c_method="SavGol")
+    Data.view_reading_pulses()
     Data.view_Weights()
     #Data.smooth_w_percent(method='SavGol',window_size=8)
     #Data.view_Weights()
